@@ -1,0 +1,444 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String                 @unique
+  emailVerified         DateTime?
+  image                 String?
+  password              String?
+  cfaLevel              CFALevel?
+  experienceLevel       ExperienceLevel?
+  studyHoursPerWeek     Int?
+  targetExamDate        DateTime?
+  isActive              Boolean                @default(true)
+  role                  UserRole               @default(USER)
+  level                 Int                    @default(1)
+  totalXP               Int                    @default(0)
+  currentStreak         Int                    @default(0)
+  longestStreak         Int                    @default(0)
+  lastLoginAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  examSessions          ExamSession[]
+  answers               Answer[]
+  forumPosts            ForumPost[]
+  forumComments         ForumComment[]
+  flashcardDecks        FlashcardDeck[]
+  studyPlans            StudyPlan[]
+  battleParticipants    BattleParticipant[]
+  userAchievements      UserAchievement[]
+  createdBattles        Battle[]               @relation("BattleCreator")
+  wonBattles            Battle[]               @relation("BattleWinner")
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Question {
+  id                String           @id @default(cuid())
+  questionText      String           @db.Text
+  questionType      QuestionType
+  cfaLevel          CFALevel
+  topicArea         String
+  difficulty        DifficultyLevel
+  options           Json             // Store as JSON for flexibility
+  correctAnswer     String
+  explanation       String           @db.Text
+  timeToComplete    Int              // in seconds
+  tags              String[]
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  answers           Answer[]
+  battleQuestions   BattleQuestion[]
+
+  @@map("questions")
+}
+
+model ExamSession {
+  id                String              @id @default(cuid())
+  userId            String
+  cfaLevel          CFALevel
+  sessionType       SessionType
+  title             String
+  description       String?
+  timeLimit         Int                 // in seconds
+  questionCount     Int
+  status            ExamSessionStatus   @default(NOT_STARTED)
+  score             Float?
+  totalQuestions    Int?
+  correctAnswers    Int?
+  timeSpent         Int?                // in seconds
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  user              User                @relation(fields: [userId], references: [id])
+  answers           Answer[]
+
+  @@map("exam_sessions")
+}
+
+model Answer {
+  id                String      @id @default(cuid())
+  userId            String
+  questionId        String
+  examSessionId     String?
+  userAnswer        String
+  isCorrect         Boolean
+  timeSpent         Int?        // in seconds
+  createdAt         DateTime    @default(now())
+
+  // Relations
+  user              User        @relation(fields: [userId], references: [id])
+  question          Question    @relation(fields: [questionId], references: [id])
+  examSession       ExamSession? @relation(fields: [examSessionId], references: [id])
+
+  @@map("answers")
+}
+
+model Battle {
+  id                String              @id @default(cuid())
+  title             String
+  description       String?
+  creatorId         String
+  winnerId          String?
+  cfaLevel          CFALevel
+  battleType        BattleType
+  questionCount     Int
+  timeLimit         Int                 // in seconds
+  maxParticipants   Int
+  entryFee          Int                 @default(0)
+  status            BattleStatus        @default(WAITING)
+  startTime         DateTime?
+  endTime           DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  creator           User                @relation("BattleCreator", fields: [creatorId], references: [id])
+  winner            User?               @relation("BattleWinner", fields: [winnerId], references: [id])
+  participants      BattleParticipant[]
+  questions         BattleQuestion[]
+
+  @@map("battles")
+}
+
+model BattleParticipant {
+  id                String      @id @default(cuid())
+  battleId          String
+  userId            String
+  score             Int         @default(0)
+  correctAnswers    Int         @default(0)
+  timeSpent         Int         @default(0) // in seconds
+  rank              Int?
+  joinedAt          DateTime    @default(now())
+
+  // Relations
+  battle            Battle      @relation(fields: [battleId], references: [id])
+  user              User        @relation(fields: [userId], references: [id])
+
+  @@unique([battleId, userId])
+  @@map("battle_participants")
+}
+
+model BattleQuestion {
+  id                String      @id @default(cuid())
+  battleId          String
+  questionId        String
+  order             Int
+
+  // Relations
+  battle            Battle      @relation(fields: [battleId], references: [id])
+  question          Question    @relation(fields: [questionId], references: [id])
+
+  @@unique([battleId, questionId])
+  @@map("battle_questions")
+}
+
+model ForumCategory {
+  id                String      @id @default(cuid())
+  name              String      @unique
+  description       String
+  color             String      @default("#0052cc")
+  icon              String      @default("📚")
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+
+  // Relations
+  posts             ForumPost[]
+
+  @@map("forum_categories")
+}
+
+model ForumPost {
+  id                String          @id @default(cuid())
+  title             String
+  content           String          @db.Text
+  authorId          String
+  categoryId        String
+  tags              String[]
+  isPinned          Boolean         @default(false)
+  isLocked          Boolean         @default(false)
+  viewCount         Int             @default(0)
+  likeCount         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  author            User            @relation(fields: [authorId], references: [id])
+  category          ForumCategory   @relation(fields: [categoryId], references: [id])
+  comments          ForumComment[]
+
+  @@map("forum_posts")
+}
+
+model ForumComment {
+  id                String      @id @default(cuid())
+  content           String      @db.Text
+  authorId          String
+  postId            String
+  parentId          String?
+  likeCount         Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  author            User        @relation(fields: [authorId], references: [id])
+  post              ForumPost   @relation(fields: [postId], references: [id])
+  parent            ForumComment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies           ForumComment[] @relation("CommentReplies")
+
+  @@map("forum_comments")
+}
+
+model FlashcardDeck {
+  id                String      @id @default(cuid())
+  title             String
+  description       String?
+  authorId          String
+  cfaLevel          CFALevel
+  topicArea         String
+  isPublic          Boolean     @default(false)
+  cardCount         Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  author            User        @relation(fields: [authorId], references: [id])
+  cards             Flashcard[]
+
+  @@map("flashcard_decks")
+}
+
+model Flashcard {
+  id                String          @id @default(cuid())
+  deckId            String
+  front             String          @db.Text
+  back              String          @db.Text
+  cardType          FlashcardType
+  difficulty        DifficultyLevel
+  order             Int
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  deck              FlashcardDeck   @relation(fields: [deckId], references: [id])
+
+  @@map("flashcards")
+}
+
+model StudyPlan {
+  id                String      @id @default(cuid())
+  title             String
+  description       String?
+  userId            String
+  cfaLevel          CFALevel
+  targetExamDate    DateTime
+  hoursPerWeek      Int
+  isActive          Boolean     @default(true)
+  progress          Float       @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  user              User        @relation(fields: [userId], references: [id])
+
+  @@map("study_plans")
+}
+
+model Achievement {
+  id                String              @id @default(cuid())
+  title             String
+  description       String
+  icon              String
+  category          AchievementCategory
+  difficulty        AchievementDifficulty
+  xpReward          Int
+  requirements      Json                // Store requirements as JSON
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+
+  // Relations
+  userAchievements  UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id                String      @id @default(cuid())
+  userId            String
+  achievementId     String
+  unlockedAt        DateTime    @default(now())
+  progress          Float       @default(0)
+
+  // Relations
+  user              User        @relation(fields: [userId], references: [id])
+  achievement       Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// Enums
+enum UserRole {
+  USER
+  INSTRUCTOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum CFALevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  ITEM_SET
+  CONSTRUCTED_RESPONSE
+}
+
+enum DifficultyLevel {
+  EASY
+  INTERMEDIATE
+  HARD
+}
+
+enum SessionType {
+  PRACTICE
+  MOCK_EXAM
+  QUICK_QUIZ
+  CUSTOM
+}
+
+enum ExamSessionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum BattleType {
+  ONE_VS_ONE
+  TOURNAMENT
+  QUICK_MATCH
+  CUSTOM
+}
+
+enum BattleStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum FlashcardType {
+  CONCEPT
+  FORMULA
+  DEFINITION
+  CALCULATION
+}
+
+enum AchievementCategory {
+  QUESTIONS_ANSWERED
+  STUDY_TIME
+  STREAK
+  ACCURACY
+  SPEED
+  SOCIAL
+  SPECIAL
+}
+
+enum AchievementDifficulty {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
