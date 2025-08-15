@@ -1,0 +1,52 @@
+User-agent: *
+Allow: /
+
+# Disallow admin areas
+Disallow: /dashboard/admin/
+Disallow: /api/admin/
+
+# Disallow auth pages for crawlers
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Allow important pages
+Allow: /
+Allow: /about
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+Allow: /help
+
+# Sitemap location
+Sitemap: https://cfaquantum.netlify.app/sitemap.xml
+
+# Crawl delay (optional)
+Crawl-delay: 1
+
+# Specific bot rules
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+# Block malicious bots
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
